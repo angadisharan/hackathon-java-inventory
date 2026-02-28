@@ -52,6 +52,11 @@ public class WarehouseConcurrencyIT {
     createWarehouseUseCase.create(warehouse);
   }
 
+  @Transactional(TxType.REQUIRES_NEW)
+  public Warehouse findWarehouseInNewTransaction(String businessUnitCode) {
+    return warehouseRepository.findByBusinessUnitCode(businessUnitCode);
+  }
+
   /**
    * Test concurrent creation of warehouses with unique codes.
    * All should succeed.
@@ -165,7 +170,7 @@ public class WarehouseConcurrencyIT {
     for (int i = 0; i < readThreadCount; i++) {
       executor.submit(() -> {
         try {
-          Warehouse found = warehouseRepository.findByBusinessUnitCode("READ-TEST-001");
+          Warehouse found = findWarehouseInNewTransaction("READ-TEST-001");
           if (found != null) {
             successfulReads.incrementAndGet();
           }
