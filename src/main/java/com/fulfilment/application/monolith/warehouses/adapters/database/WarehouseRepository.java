@@ -4,6 +4,7 @@ import com.fulfilment.application.monolith.warehouses.domain.models.Warehouse;
 import com.fulfilment.application.monolith.warehouses.domain.ports.WarehouseStore;
 import io.quarkus.hibernate.orm.panache.PanacheRepository;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.persistence.Query;
 import java.util.List;
 
 @ApplicationScoped
@@ -51,5 +52,38 @@ public class WarehouseRepository implements WarehouseStore, PanacheRepository<Db
   public Warehouse findByBusinessUnitCode(String buCode) {
     DbWarehouse dbWarehouse = find("businessUnitCode", buCode).firstResult();
     return dbWarehouse != null ? dbWarehouse.toWarehouse() : null;
+  }
+
+  /**
+   * Search active (non-archived) warehouses with optional filters, sort and pagination.
+   * All filters are AND logic. sortBy is "createdAt" (default) or "capacity"; sortOrder is "asc" (default) or "desc".
+   */
+  public List<Warehouse> search(
+      String location,
+      Integer minCapacity,
+      Integer maxCapacity,
+      String sortBy,
+      String sortOrder,
+      int page,
+      int pageSize) {
+    String orderField = "createdAt".equalsIgnoreCase(sortBy) ? "w.createdAt" : "w.capacity";
+    String direction = "desc".equalsIgnoreCase(sortOrder) ? "DESC" : "ASC";
+    String jpql =
+        "SELECT w FROM DbWarehouse w WHERE w.archivedAt IS NULL"
+            + " AND (:location IS NULL OR w.location = :location)"
+            + " AND (:minCap IS NULL OR w.capacity >= :minCap)"
+            + " AND (:maxCap IS NULL OR w.capacity <= :maxCap)"
+            + " ORDER BY " + orderField + " " + direction;
+
+    Query query = getEntityManager().createQuery(jpql);
+    query.setParameter("location", location);
+    query.setParameter("minCap", minCapacity);
+    query.setParameter("maxCap", maxCapacity);
+    query.setFirstResult(page * pageSize);
+    query.setMaxResults(pageSize);
+
+    @SuppressWarnings("unchecked")
+    List<DbWarehouse> results = query.getResultList();
+    return results.stream().map(DbWarehouse::toWarehouse).toList();
   }
 }

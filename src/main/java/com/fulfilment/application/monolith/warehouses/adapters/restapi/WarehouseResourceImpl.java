@@ -11,6 +11,7 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.validation.constraints.NotNull;
 import jakarta.ws.rs.WebApplicationException;
+import java.math.BigInteger;
 import java.util.List;
 
 @RequestScoped
@@ -45,6 +46,33 @@ public class WarehouseResourceImpl implements WarehouseResource {
     } catch (IllegalArgumentException e) {
       throw new WebApplicationException(e.getMessage(), 400);
     }
+  }
+
+  @Override
+  public List<Warehouse> searchWarehouses(
+      String location,
+      BigInteger minCapacity,
+      BigInteger maxCapacity,
+      String sortBy,
+      String sortOrder,
+      BigInteger page,
+      BigInteger pageSize) {
+    int pageVal = page != null ? page.intValue() : 0;
+    int pageSizeVal = pageSize != null ? pageSize.intValue() : 10;
+    if (pageSizeVal > 100) {
+      pageSizeVal = 100;
+    }
+    if (pageSizeVal < 1) {
+      pageSizeVal = 10;
+    }
+    Integer minCap = minCapacity != null ? minCapacity.intValue() : null;
+    Integer maxCap = maxCapacity != null ? maxCapacity.intValue() : null;
+    String sortByVal = (sortBy != null && !sortBy.isBlank()) ? sortBy : "createdAt";
+    String sortOrderVal = (sortOrder != null && !sortOrder.isBlank()) ? sortOrder : "asc";
+
+    var domainList = warehouseRepository.search(
+        location, minCap, maxCap, sortByVal, sortOrderVal, pageVal, pageSizeVal);
+    return domainList.stream().map(this::toWarehouseResponse).toList();
   }
 
   @Override
