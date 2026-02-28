@@ -7,6 +7,7 @@ import com.fulfilment.application.monolith.warehouses.domain.usecases.CreateWare
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.transaction.Transactional.TxType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -46,6 +47,11 @@ public class WarehouseConcurrencyIT {
     createWarehouseUseCase = new CreateWarehouseUseCase(warehouseRepository, locationResolver);
   }
 
+  @Transactional(TxType.REQUIRES_NEW)
+  public void createWarehouseInNewTransaction(Warehouse warehouse) {
+    createWarehouseUseCase.create(warehouse);
+  }
+
   /**
    * Test concurrent creation of warehouses with unique codes.
    * All should succeed.
@@ -67,8 +73,8 @@ public class WarehouseConcurrencyIT {
           warehouse.location = "AMSTERDAM-001";
           warehouse.capacity = 50;
           warehouse.stock = 10;
-          
-          createWarehouseUseCase.create(warehouse);
+
+          createWarehouseInNewTransaction(warehouse);
           return true;
         } catch (Exception e) {
           return false;
@@ -117,8 +123,8 @@ public class WarehouseConcurrencyIT {
           warehouse.location = "ZWOLLE-001";
           warehouse.capacity = 30;
           warehouse.stock = 5;
-          
-          createWarehouseUseCase.create(warehouse);
+
+          createWarehouseInNewTransaction(warehouse);
           successCount.incrementAndGet();
         } catch (Exception e) {
           // Expected: duplicate key or already exists error
@@ -141,15 +147,14 @@ public class WarehouseConcurrencyIT {
    * Test concurrent reads don't block each other (read scalability).
    */
   @Test
-  @Transactional
   public void testConcurrentReadsAreNonBlocking() throws InterruptedException {
-    // Create a warehouse first
+    // Create a warehouse first in its own transaction so it is committed before reads
     Warehouse warehouse = new Warehouse();
     warehouse.businessUnitCode = "READ-TEST-001";
     warehouse.location = "AMSTERDAM-001";
     warehouse.capacity = 100;
     warehouse.stock = 50;
-    createWarehouseUseCase.create(warehouse);
+    createWarehouseInNewTransaction(warehouse);
     
     int readThreadCount = 20;
     ExecutorService executor = Executors.newFixedThreadPool(readThreadCount);
